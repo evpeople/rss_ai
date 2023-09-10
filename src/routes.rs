@@ -24,17 +24,24 @@ pub async fn create_user(
     // this argument tells axum to parse the request body
     // as JSON into a `CreateUser` type
     State(pool): State<SqlitePool>,
-    Json(_payload): Json<CreateUser>,
+    Json(payload): Json<CreateUser>,
 ) -> impl IntoResponse {
     // insert your application logic here
     let user = User {
-        id: 123,
-        username: "dasda".to_string(),
+        error_msg: "创建用户成功".to_string(),
+        username: payload.username,
     };
     tracing::info!("inserting user into database");
     sqlx::query!("INSERT INTO users (username) VALUES (?)", user.username)
         .execute(&pool)
         .await
-        .expect("Failed to insert user");
-    (StatusCode::CREATED, Json(user))
+        .map_or((StatusCode::CREATED, Json(user)), |_e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(User {
+                    error_msg: ("创建用户失败").to_string(),
+                    username: "".to_string(),
+                }),
+            )
+        })
 }

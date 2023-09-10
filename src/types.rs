@@ -13,7 +13,7 @@ pub struct CreateRss {
 
 #[derive(Serialize)]
 pub struct User {
-    pub id: u64,
+    pub error_msg: String,
     pub username: String,
 }
 
