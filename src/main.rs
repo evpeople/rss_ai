@@ -5,18 +5,20 @@
 //! ```
 
 use axum::{
-    async_trait,
-    extract::{FromRef, FromRequestParts, State,Json},
-    http::{request::Parts, StatusCode},
     routing::{get, post},
-    response::IntoResponse,
     Router,
-    debug_handler,
 };
 // use axum_macros::debug_handler;
-use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+
+
 use std::net::SocketAddr;
+
+mod routes;
+mod types;
+use routes::{root, create_user, modify_rss};
+
+// mod models; // 当您有与数据库相关的逻辑时启用这一行
+
 #[tokio::main]
 async fn main() {
     // initialize tracing
@@ -44,68 +46,4 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
-}
-
-// basic handler that responds with a static string
-async fn root() -> &'static str {
-    "Hello, World!"
-}
-
-async fn modify_rss(Json(payload): Json<CreateRss>) -> impl IntoResponse {
-    // insert your application logic here
-    let rss_reuslt = RSSResult {
-        rssName: "new RSS".to_string(),
-        id: 0,
-        url: payload.rss,
-    };
-
-    // this will be converted into a JSON response
-    // with a status code of `201 Created`
-    (StatusCode::CREATED, Json(rss_reuslt))
-}
-#[debug_handler]
-async fn create_user(
-    // this argument tells axum to parse the request body
-    // as JSON into a `CreateUser` type
-
-    State(pool): State<SqlitePool>,
-    Json(payload): Json<CreateUser>,
-) ->  impl IntoResponse {
-    // insert your application logic here
-    let user = User {
-        id: 123,
-        username: "dasda".to_string(),
-    };
-    tracing::info!("inserting user into database");
-    sqlx::query!("INSERT INTO users (username) VALUES (?)", user.username)
-        .execute(&pool)
-        .await
-        .expect("Failed to insert user");
-  (StatusCode::CREATED, Json(user))
-
-}
-// the input to our `create_user` handler
-#[derive(Deserialize)]
-struct CreateUser {
-    username: String,
-}
-
-// the input to our `create_rss` handler
-#[derive(Deserialize)]
-struct CreateRss {
-    username: String,
-    rss: String,
-}
-// the output to our `create_user` handler
-#[derive(Serialize)]
-struct User {
-    id: u64,
-    username: String,
-}
-// the output to our `create_user` handler
-#[derive(Serialize)]
-struct RSSResult {
-    id: u64,
-    rssName: String,
-    url: String,
 }
