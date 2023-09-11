@@ -10,12 +10,11 @@ use axum::{
 };
 // use axum_macros::debug_handler;
 
-
 use std::net::SocketAddr;
 
 mod routes;
 mod types;
-use routes::{root, create_user, modify_rss};
+use routes::{add_rss, create_user, modify_rss, root};
 
 // mod models; // 当您有与数据库相关的逻辑时启用这一行
 
@@ -29,12 +28,14 @@ async fn main() {
     let pool = sqlx::sqlite::SqlitePool::connect(&db_connection_str)
         .await
         .expect("Failed to connect to DB");
+
     // build our application with a route
     let app = Router::new()
         // `GET /` goes to `root`
         .route("/", get(root))
-        .route("/rss", post(modify_rss))
+        .route("/rss", get(modify_rss))
         // `POST /users` goes to `create_user`
+        .route("/rss", post(add_rss))
         .route("/users", post(create_user))
         .with_state(pool);
 

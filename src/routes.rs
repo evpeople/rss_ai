@@ -19,6 +19,90 @@ pub async fn modify_rss(Json(payload): Json<CreateRss>) -> impl IntoResponse {
     // with a status code of `201 Created`
     (StatusCode::CREATED, Json(rss_result))
 }
+pub async fn add_rss(
+    State(pool): State<SqlitePool>,
+    Json(payload): Json<CreateRss>,
+) -> impl IntoResponse {
+    let rss = &payload.rss;
+    let user_name = &payload.username;
+    let feed_id = sqlx::query!("select feed_id from rss_feeds where feed_url = ?", rss)
+        .fetch_one(&pool)
+        .await;
+    let user_id = sqlx::query!("select user_id from users where username =?", user_name)
+        .fetch_one(&pool)
+        .await;
+
+    let user_id = match user_id {
+        Ok(user_id) => user_id.user_id,
+        Err(err) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(User {
+                    error_msg: err.to_string(),
+                    username: payload.username.to_string(),
+                }),
+            );
+        }
+    };
+
+    let feed_id = match feed_id {
+        Ok(feed_id) => feed_id.feed_id,
+        Err(err) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(User {
+                    error_msg: err.to_string(),
+                    username: payload.username.to_string(),
+                }),
+            );
+        }
+    };
+
+    let user_feed = sqlx::query!(
+        "select * from user_feeds where user_id=? and feed_id=?",
+        user_id,
+        feed_id
+    )
+    .fetch_one(&pool)
+    .await;
+
+    match user_feed {
+        Ok(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(User {
+                    error_msg: "已经添加了相应RSS".to_string(),
+                    username: payload.username.to_string(),
+                }),
+            );
+        }
+        Err(_) => sqlx::query!(
+            "INSERT INTO user_feeds (user_id, feed_id) VALUES (?, ?)",
+            user_id,
+            feed_id
+        )
+        .fetch_one(&pool)
+        .await
+        .map_or(
+            (
+                StatusCode::CREATED,
+                Json(User {
+                    error_msg: "添加成功".to_string(),
+                    username: payload.username,
+                }),
+            ),
+            |_e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(User {
+                        error_msg: ("添加RSS 失败").to_string(),
+                        username: "".to_string(),
+                    }),
+                )
+            },
+        ),
+    }
+}
 // #[debug_handler]
 pub async fn create_user(
     // this argument tells axum to parse the request body
@@ -27,6 +111,7 @@ pub async fn create_user(
     Json(payload): Json<CreateUser>,
 ) -> impl IntoResponse {
     // insert your application logic here
+
     let user = User {
         error_msg: "创建用户成功".to_string(),
         username: payload.username,
