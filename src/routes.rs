@@ -1,8 +1,8 @@
-use crate::types::{CreateRss, CreateUser, User};
+use crate::types::{CreateRss, CreateUser, RssQuery, User};
 use axum::{
     body::Body,
     extract::Json,
-    extract::State,
+    extract::{Query, State},
     http::{Response, StatusCode},
     response::IntoResponse,
 };
@@ -148,8 +148,10 @@ pub async fn create_user(
         ),
     }
 }
-pub async fn modify_rss(rss_url: String) -> impl IntoResponse {
-    let rss_content = reqwest::get(&rss_url).await;
+pub async fn modify_rss(query: Query<RssQuery>) -> impl IntoResponse {
+    tracing::error!(" the rss_url 是{}", &query.rss_url);
+    let rss_content = reqwest::get(&query.rss_url).await;
+    // let rss_content = reqwest::get("https://www.bbc.com/zhongwen/simp/index.xml").await;
     let rss_content = match rss_content {
         Ok(rss_content) => match rss_content.text().await {
             Ok(rss_content) => rss_content,
@@ -160,7 +162,7 @@ pub async fn modify_rss(rss_url: String) -> impl IntoResponse {
                         serde_json::to_string(&User {
                             error_msg: format!(
                                 "读取rss响应 {} 失败, error_msg是 {}",
-                                rss_url,
+                                query.rss_url,
                                 e.to_string()
                             ),
                             username: "".to_string(),
@@ -177,7 +179,7 @@ pub async fn modify_rss(rss_url: String) -> impl IntoResponse {
                     serde_json::to_string(&User {
                         error_msg: format!(
                             "抓取rss {} 失败, error_msg是 {}",
-                            rss_url,
+                            query.rss_url,
                             e.to_string()
                         ),
                         username: "".to_string(),
@@ -198,7 +200,7 @@ pub async fn modify_rss(rss_url: String) -> impl IntoResponse {
                     serde_json::to_string(&User {
                         error_msg: format!(
                             "解析 rss {} 失败, error_msg是 {}",
-                            rss_url,
+                            query.rss_url,
                             e.to_string()
                         ),
                         username: "".to_string(),

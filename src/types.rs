@@ -23,3 +23,7 @@ pub struct RSSResult {
     pub rss_name: String,
     pub url: String,
 }
+#[derive(Deserialize)]
+pub struct RssQuery {
+    pub rss_url: String,
+}
