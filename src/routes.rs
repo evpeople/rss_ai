@@ -1,4 +1,8 @@
 use crate::types::{CreateRss, CreateUser, RssQuery, User};
+use async_openai::{
+    types::{ChatCompletionRequestMessageArgs, CreateChatCompletionRequestArgs, Role},
+    Client,
+};
 use axum::{
     body::Body,
     extract::Json,
@@ -8,7 +12,8 @@ use axum::{
 };
 use chrono::{DateTime, Local};
 use sqlx::SqlitePool;
-
+use std::{error::Error, thread};
+use tracing_subscriber::fmt::format;
 // basic handler that responds with a static string
 pub async fn root() -> &'static str {
     "Hello, World!"
@@ -216,7 +221,37 @@ pub async fn modify_rss(query: Query<RssQuery>) -> impl IntoResponse {
         .iter()
         .map(|item| {
             let mut new_item = item.clone();
-            new_item.set_title(format!("Modified: {}", item.title().unwrap_or_default()));
+            let content = item.description.clone().unwrap_or_default();
+            let new_description = item.description.clone().unwrap_or_default();
+            // let summarize = move || {
+            //     let description = new_description;
+            //     async {
+            //         let summer = summarize(&description).await;
+            //     }
+            // };
+            let handle = thread::spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_io()
+                    .enable_time()
+                    .build()
+                    .unwrap()
+                    .block_on(summarize(&content))
+            });
+            handle.join().unwrap();
+            // let handle = tokio::spawn(async {
+            //     let summer = summarize(&new_description).await;
+            // })
+            // .await
+            // .unwrap();
+
+            new_item.set_description(format!(
+                "<br>这篇文章的大概内容是:{}<br><br>文章关键词是:{}<br><br>{} ",
+                new_description, new_description, new_description
+            ));
+            new_item.set_title(format!(
+                "Modified: {} 来自RSS_AI",
+                item.title().unwrap_or_default()
+            ));
             new_item
         })
         .collect();
@@ -226,4 +261,32 @@ pub async fn modify_rss(query: Query<RssQuery>) -> impl IntoResponse {
         .status(StatusCode::OK)
         .body(Body::from(modified_channel.to_string()))
         .unwrap()
+}
+
+async fn summarize(content: &str) -> Option<String> {
+    let client = Client::new();
+    // TODO: 这里有一个优化,提前将content里的HTML标签删掉,应该能减少token的消耗
+    let request = CreateChatCompletionRequestArgs::default()
+                            .max_tokens(512u16)
+                            .model("gpt-3.5-turbo")
+                            .messages([
+                            ChatCompletionRequestMessageArgs::default()
+                                .role(Role::System)
+                                .content("你是一个善于进行文章内容的总结的助手,用户会给你发送HTML格式的消息,你负责用100字总结其主要内容")
+                                .build().unwrap(),
+                            ChatCompletionRequestMessageArgs::default()
+                                .role(Role::User)
+                                .content(format!("请总结下面这篇文章 {}",content))
+                                .build().unwrap(),
+                                ]).build().unwrap();
+    let response = client.chat().create(request).await.unwrap();
+    for choice in response.choices {
+        tracing::info!(
+            "{}: Role: {} Content: {:?}",
+            choice.index,
+            choice.message.role,
+            choice.message.content
+        );
+    }
+    Some("te".to_string())
 }
