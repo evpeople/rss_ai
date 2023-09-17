@@ -16,7 +16,7 @@ mod routes;
 mod types;
 use dotenv::dotenv;
 use routes::{add_rss, create_user, modify_rss, root};
-use std::env;
+
 // mod models; // 当您有与数据库相关的逻辑时启用这一行
 
 #[tokio::main]
