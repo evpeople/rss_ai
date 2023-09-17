@@ -1,0 +1,60 @@
+name: Test suite
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Everyday at 5:00am
+    - cron: '0 5 * * *'
+  pull_request:
+  push:
+    # trying and staging branches are for Bors config
+    branches:
+      - trying
+      - staging
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+
+  clippy:
+    name: Run Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.71.1
+          override: true
+          components: clippy
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2.6.2
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets -- --deny warnings
+
+  fmt:
+    name: Run Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rustfmt
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2.6.2
+      - name: Run cargo fmt
+        # Since we never ran the `build.rs` script in the benchmark directory we are missing one auto-generated import file.
+        # Since we want to trigger (and fail) this action as fast as possible, instead of building the benchmark crate
+        # we are going to create an empty file where rustfmt expects it.
+        run: |
+          echo -ne "\n" > benchmarks/benches/datasets_paths.rs
+          cargo fmt --all -- --check
