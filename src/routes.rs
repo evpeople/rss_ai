@@ -11,9 +11,10 @@ use axum::{
     response::IntoResponse,
 };
 use chrono::{DateTime, Local};
+use regex::Regex;
 use sqlx::SqlitePool;
 use std::{error::Error, thread};
-use tracing_subscriber::fmt::format;
+
 // basic handler that responds with a static string
 pub async fn root() -> &'static str {
     "Hello, World!"
@@ -237,7 +238,7 @@ pub async fn modify_rss(query: Query<RssQuery>) -> impl IntoResponse {
                     .unwrap()
                     .block_on(summarize(&content))
             });
-            handle.join().unwrap();
+            let result = handle.join().unwrap();
             // let handle = tokio::spawn(async {
             //     let summer = summarize(&new_description).await;
             // })
@@ -245,8 +246,9 @@ pub async fn modify_rss(query: Query<RssQuery>) -> impl IntoResponse {
             // .unwrap();
 
             new_item.set_description(format!(
-                "<br>这篇文章的大概内容是:{}<br><br>文章关键词是:{}<br><br>{} ",
-                new_description, new_description, new_description
+                "<br>这篇文章的大概内容是:{}<br><br>{} ",
+                result.unwrap_or("获取总结失败".to_string()),
+                new_description
             ));
             new_item.set_title(format!(
                 "Modified: {} 来自RSS_AI",
@@ -263,12 +265,19 @@ pub async fn modify_rss(query: Query<RssQuery>) -> impl IntoResponse {
         .unwrap()
 }
 
+fn remove_html_tags(input: &str) -> String {
+    let re = Regex::new(r"<[^>]+>").unwrap();
+    re.replace_all(input, "").into_owned()
+}
+
 async fn summarize(content: &str) -> Option<String> {
     let client = Client::new();
-    // TODO: 这里有一个优化,提前将content里的HTML标签删掉,应该能减少token的消耗
+    let mut cleaned_content = remove_html_tags(content);
+    let index = cleaned_content.char_indices().nth(1024).unwrap();
+    cleaned_content.truncate(index.0);
     let request = CreateChatCompletionRequestArgs::default()
                             .max_tokens(512u16)
-                            .model("gpt-3.5-turbo-16k")
+                            .model("gpt-3.5-turbo")
                             .messages([
                             ChatCompletionRequestMessageArgs::default()
                                 .role(Role::System)
@@ -276,17 +285,13 @@ async fn summarize(content: &str) -> Option<String> {
                                 .build().unwrap(),
                             ChatCompletionRequestMessageArgs::default()
                                 .role(Role::User)
-                                .content(format!("请总结下面这篇文章 {}",content))
+                                .content(format!("请总结下面这篇文章 {}",cleaned_content))
                                 .build().unwrap(),
                                 ]).build().unwrap();
     let response = client.chat().create(request).await.unwrap();
     for choice in response.choices {
-        tracing::info!(
-            "{}: Role: {} Content: {:?}",
-            choice.index,
-            choice.message.role,
-            choice.message.content
-        );
+        return choice.message.content;
     }
-    Some("te".to_string())
+    tracing::error!("{}", cleaned_content);
+    None
 }
