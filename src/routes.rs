@@ -268,7 +268,7 @@ async fn summarize(content: &str) -> Option<String> {
     // TODO: 这里有一个优化,提前将content里的HTML标签删掉,应该能减少token的消耗
     let request = CreateChatCompletionRequestArgs::default()
                             .max_tokens(512u16)
-                            .model("gpt-3.5-turbo")
+                            .model("gpt-3.5-turbo-16k")
                             .messages([
                             ChatCompletionRequestMessageArgs::default()
                                 .role(Role::System)

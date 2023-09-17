@@ -2,3 +2,4 @@
 /.sqlx
 *.db
 .env
+test.xml
