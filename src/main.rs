@@ -11,7 +11,6 @@ use axum::{
 // use axum_macros::debug_handler;
 
 use std::net::SocketAddr;
-
 mod routes;
 mod types;
 use dotenv::dotenv;
