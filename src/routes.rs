@@ -31,7 +31,6 @@ pub async fn add_rss(
     let user_id = sqlx::query!("select user_id from users where username =?", user_name)
         .fetch_one(&pool)
         .await;
-
     let user_id = match user_id {
         Ok(user_id) => user_id.user_id,
         Err(err) => {
@@ -157,6 +156,7 @@ pub async fn create_user(
 pub async fn modify_rss(query: Query<RssQuery>) -> impl IntoResponse {
     tracing::error!(" the rss_url 是{}", &query.rss_url);
     let rss_content = reqwest::get(&query.rss_url).await;
+    
     // let rss_content = reqwest::get("https://www.bbc.com/zhongwen/simp/index.xml").await;
     let rss_content = match rss_content {
         Ok(rss_content) => match rss_content.text().await {
@@ -273,7 +273,14 @@ fn remove_html_tags(input: &str) -> String {
 async fn summarize(content: &str) -> Option<String> {
     let client = Client::new();
     let mut cleaned_content = remove_html_tags(content);
-    let index = cleaned_content.char_indices().nth(1024).unwrap();
+
+    let index = if cleaned_content.chars().count() >= 1024 {
+        cleaned_content.char_indices().nth(1023) // 注意：nth()方法使用的索引值是从0开始的
+    } else {
+        cleaned_content.char_indices().last()
+    }.unwrap();
+    // let index = cleaned_content.char_indices().nth(1024).unwrap();
+   
     cleaned_content.truncate(index.0);
     let request = CreateChatCompletionRequestArgs::default()
                             .max_tokens(512u16)
